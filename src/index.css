@@ -1,0 +1,188 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/fraunces';
+
+:root {
+  color-scheme: light;
+  --bg: #f3eee3;
+  --surface: #fbf8f1;
+  --sunken: #e9e2d3;
+  --ink: #1e2330;
+  --muted: #666a7a;
+  --line: rgb(30 35 48 / 0.13);
+  --accent: #2f48c0;
+  --accent-ink: #ffffff;
+  --paper: #2c44b8;
+  --paper-edge: #17246f;
+  --paper-grid: rgb(255 255 255 / 0.2);
+  --paper-back: #b7c4f5;
+  --paper-back-edge: #4f64c4;
+  --paper-back-grid: rgb(43 63 163 / 0.16);
+  --hint: #ffb224;
+  --hint-edge: #3a2a00;
+  --good: #1f9462;
+  --good-soft: #dcf1e6;
+  --bad: #d2432f;
+  --bad-soft: #f9e0da;
+  --shadow: 0 1px 2px rgb(30 35 48 / 0.06), 0 6px 20px rgb(30 35 48 / 0.07);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #14161c;
+    --surface: #1d2028;
+    --sunken: #101217;
+    --ink: #efeade;
+    --muted: #9a9dab;
+    --line: rgb(239 234 222 / 0.14);
+    --accent: #8298ff;
+    --accent-ink: #0d1020;
+    --paper: #5f7af5;
+    --paper-edge: #b9c5ff;
+    --paper-grid: rgb(255 255 255 / 0.22);
+    --paper-back: #cdd6ff;
+    --paper-back-edge: #4a5fc4;
+    --paper-back-grid: rgb(43 63 163 / 0.2);
+    --good: #4cc38a;
+    --good-soft: #17382a;
+    --bad: #ff7a66;
+    --bad-soft: #43201b;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.3);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #14161c;
+  --surface: #1d2028;
+  --sunken: #101217;
+  --ink: #efeade;
+  --muted: #9a9dab;
+  --line: rgb(239 234 222 / 0.14);
+  --accent: #8298ff;
+  --accent-ink: #0d1020;
+  --paper: #5f7af5;
+  --paper-edge: #b9c5ff;
+  --paper-grid: rgb(255 255 255 / 0.22);
+  --paper-back: #cdd6ff;
+  --paper-back-edge: #4a5fc4;
+  --paper-back-grid: rgb(43 63 163 / 0.2);
+  --good: #4cc38a;
+  --good-soft: #17382a;
+  --bad: #ff7a66;
+  --bad-soft: #43201b;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.3);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --font-display: 'Fraunces Variable', 'Iowan Old Style', 'Noto Serif TC', 'Songti TC', Georgia, serif;
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
+  --shadow-card: var(--shadow);
+}
+
+@layer base {
+  html {
+    background: var(--bg);
+    color: var(--ink);
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    font-family: var(--font-sans);
+    overscroll-behavior-y: none;
+  }
+
+  button {
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  button:disabled {
+    cursor: default;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Game screen sizing. Everything derives from two lengths so the stage, the
+ * four options and the action bar fit one phone screen without scrolling.
+ */
+.game-layout {
+  --opt: clamp(96px, min((100vw - 44px) / 2, (100dvh - 330px) * 0.29), 176px);
+  --stage: clamp(140px, min(100vw - 96px, 100dvh - 2 * var(--opt) - 322px), 340px);
+}
+
+@media (min-width: 900px) {
+  .game-layout {
+    --opt: clamp(130px, min(21vw, (100dvh - 250px) / 2), 230px);
+    --stage: clamp(240px, min(36vw, 100dvh - 290px), 460px);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes shake {
+  20%,
+  60% {
+    transform: translateX(-4px);
+  }
+  40%,
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+.animate-pop {
+  animation: pop-in 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+.animate-fade {
+  animation: fade-in 0.2s ease-out both;
+}
+
+.animate-shake {
+  animation: shake 0.35s ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pop,
+  .animate-fade,
+  .animate-shake {
+    animation: none;
+  }
+}
