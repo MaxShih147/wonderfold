@@ -63,6 +63,8 @@ Edit `DIFFICULTY_CONFIG` in `src/engine/generator.ts`: grid size, number of fold
 
 ## Deploying
 
-`dist/` is a plain static site and can go on any static host. `public/_headers` sets security and cache headers in the format Cloudflare Pages and Netlify read; on other hosts, set the equivalent headers there. Build command `npm run build`, output directory `dist`.
+`dist/` is a plain static site and can go on any static host. Build command `npm run build`, output directory `dist`.
+
+Security and cache headers are declared twice, once per host format: `vercel.json` for Vercel, `public/_headers` for Cloudflare Pages and Netlify. Keep them in step.
 
 Progress is stored in `localStorage` under `wonderfold:v1`.
