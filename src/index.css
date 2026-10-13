@@ -143,6 +143,74 @@
   }
 }
 
+/* The fold-it-yourself screens: one big sheet, a small reference above it. */
+.bench-layout {
+  --stage: clamp(190px, min(100vw - 64px, 100dvh - 420px), 420px);
+}
+
+@media (min-width: 900px) {
+  .bench-layout {
+    --stage: clamp(280px, min(40vw, 100dvh - 270px), 480px);
+  }
+}
+
+.crease,
+.punch-spot {
+  cursor: pointer;
+  outline: none;
+}
+
+.crease-under {
+  stroke: #000;
+  stroke-opacity: 0.28;
+  stroke-width: 2.4;
+}
+
+.crease-line {
+  stroke: #fff;
+  stroke-opacity: 0.8;
+  stroke-width: 1.2;
+  stroke-dasharray: 4 4;
+}
+
+.crease:hover .crease-under,
+.crease:focus-visible .crease-under {
+  stroke: var(--hint-edge);
+  stroke-opacity: 1;
+  stroke-width: 5.5;
+}
+
+.crease:hover .crease-line,
+.crease:focus-visible .crease-line {
+  stroke: var(--hint);
+  stroke-opacity: 1;
+  stroke-width: 3;
+  stroke-dasharray: 7 5;
+}
+
+.punch-spot circle {
+  fill: var(--hint);
+  fill-opacity: 0.14;
+  stroke: var(--hint-edge);
+  stroke-opacity: 0.55;
+  stroke-width: 1.2;
+  stroke-dasharray: 3 3;
+}
+
+.punch-spot:hover circle,
+.punch-spot:focus-visible circle {
+  fill-opacity: 0.55;
+  stroke-opacity: 1;
+}
+
+.punch-spot[aria-pressed='true'] circle {
+  fill: none;
+  stroke: var(--hint);
+  stroke-opacity: 1;
+  stroke-width: 2.5;
+  stroke-dasharray: none;
+}
+
 @keyframes pop-in {
   from {
     opacity: 0;

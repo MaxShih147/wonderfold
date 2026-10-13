@@ -1,4 +1,4 @@
-import { memo, useId } from 'react';
+import { memo, useId, type ReactNode } from 'react';
 import { HOLE_RADIUS, cellCenter, type Cell, type FoldHint, type Piece, type Point } from '../engine/index.ts';
 
 const PAD = 0.45;
@@ -65,6 +65,8 @@ interface Props {
   compact?: boolean;
   className?: string;
   label?: string;
+  /** Extra SVG drawn over the paper, in grid coordinates. */
+  children?: ReactNode;
 }
 
 /** Draws a stack of paper plies. Purely presentational. */
@@ -79,6 +81,7 @@ export const PaperCanvas = memo(function PaperCanvas({
   compact = false,
   className,
   label,
+  children,
 }: Props) {
   const id = useId();
   const grid = gridPath(n);
@@ -90,7 +93,7 @@ export const PaperCanvas = memo(function PaperCanvas({
       className={className}
       role={label ? 'img' : undefined}
       aria-label={label}
-      aria-hidden={label ? undefined : true}
+      aria-hidden={label || children ? undefined : true}
       data-grid={showGrid}
     >
       <defs>
@@ -191,6 +194,7 @@ export const PaperCanvas = memo(function PaperCanvas({
             </g>
           );
         })}
+      {children}
     </svg>
   );
 });

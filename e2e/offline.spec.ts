@@ -15,6 +15,7 @@ test('installs a service worker and plays offline', async ({ page, context, brow
   await context.setOffline(true);
   await page.reload();
   await page.getByTestId('howto-close').click();
+  await page.getByTestId('mode-classic').click();
   await page.getByTestId('continue').click();
   await expect(page.getByTestId('option-0')).toBeVisible();
 });

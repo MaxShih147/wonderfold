@@ -93,3 +93,27 @@ export const LockIcon = (p: P) => (
     <path d="M8 11V8a4 4 0 0 1 8 0v3" />
   </Icon>
 );
+export const UndoIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M9 14L4 9l5-5" />
+    <path d="M4 9h10a6 6 0 0 1 0 12h-3" />
+  </Icon>
+);
+export const RedoIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M15 14l5-5-5-5" />
+    <path d="M20 9H10a6 6 0 0 0 0 12h3" />
+  </Icon>
+);
+export const FlipIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 3v18" strokeDasharray="2 3" />
+    <path d="M8 8l-4 4 4 4" />
+    <path d="M16 8l4 4-4 4" />
+  </Icon>
+);
+export const TrashIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+  </Icon>
+);

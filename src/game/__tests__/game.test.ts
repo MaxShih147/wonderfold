@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { patternKey, simulate } from '../../engine/index.ts';
+import {
+  EMPTY_WORK,
+  addFold,
+  creaseOptions,
+  flipLastFold,
+  patternKey,
+  simulate,
+  togglePunch,
+  workStates,
+  type Work,
+} from '../../engine/index.ts';
 import { bruteForceHoles } from '../../engine/__tests__/oracle.ts';
-import { LEVELS, TIER_COUNT, levelLabel, parseLevelLabel } from '../levels.ts';
+import { customPuzzle, decodeCustom, encodeCustom } from '../custom.ts';
+import { LEVELS, REVERSE_LEVELS, TIER_COUNT, levelLabel, parseLevelLabel } from '../levels.ts';
 import { parseRoute, routeHash } from '../router.ts';
 import {
   clearedLevels,
@@ -15,6 +26,7 @@ import {
   recordAnswer,
   recordDailyAnswer,
   recordLevelAnswer,
+  recordReverseClear,
   type Save,
 } from '../save.ts';
 import { dailyShareText, formatTime } from '../share.ts';
@@ -99,6 +111,7 @@ describe('persistence', () => {
     // Settings added after a save was written take their default.
     expect(partial.settings.grid).toBe(false);
     expect(partial.levels).toEqual({});
+    expect(partial.reverse).toEqual({});
   });
 });
 
@@ -126,6 +139,20 @@ describe('routing', () => {
       expect(parseRoute(bad), bad).toEqual({ name: 'home' });
     }
     expect(routeHash({ name: 'level', index: 23 })).toBe('#/level/3-3');
+    expect(parseRoute('#/levels')).toEqual({ name: 'levels', mode: 'classic' });
+    expect(parseRoute('#/reverse')).toEqual({ name: 'levels', mode: 'reverse' });
+    expect(parseRoute('#/reverse/2-4')).toEqual({ name: 'reverse', index: 14 });
+    expect(parseRoute('#/create')).toEqual({ name: 'create' });
+    expect(parseRoute('#/custom/4v2_30')).toEqual({ name: 'custom', code: '4v2_30' });
+    expect(parseRoute('#/custom/garbage')).toEqual({ name: 'home' });
+    for (const route of [
+      { name: 'levels', mode: 'reverse' },
+      { name: 'reverse', index: 49 },
+      { name: 'create' },
+      { name: 'custom', code: '6v3H3_31' },
+    ] as const) {
+      expect(parseRoute(routeHash(route))).toEqual(route);
+    }
   });
 });
 
@@ -163,24 +190,24 @@ describe('levels', () => {
 
   it('unlock one at a time', () => {
     let save = defaultSave();
-    expect(nextLevel(save, 50)).toBe(0);
-    expect(isLevelUnlocked(save, 0)).toBe(true);
-    expect(isLevelUnlocked(save, 1)).toBe(false);
+    expect(nextLevel(save.levels, 50)).toBe(0);
+    expect(isLevelUnlocked(save.levels, 0)).toBe(true);
+    expect(isLevelUnlocked(save.levels, 1)).toBe(false);
 
     // A miss costs the streak but opens nothing.
     save = recordLevelAnswer(save, 0, 'easy', { correct: false, ms: 900 }).save;
-    expect(isLevelCleared(save, 0)).toBe(false);
-    expect(isLevelUnlocked(save, 1)).toBe(false);
+    expect(isLevelCleared(save.levels, 0)).toBe(false);
+    expect(isLevelUnlocked(save.levels, 1)).toBe(false);
     expect(save.stats.byDifficulty.easy.played).toBe(1);
 
     const win = recordLevelAnswer(save, 0, 'easy', { correct: true, ms: 4000 });
     save = win.save;
     expect(win.points).toBeGreaterThanOrEqual(100);
-    expect(isLevelCleared(save, 0)).toBe(true);
-    expect(isLevelUnlocked(save, 1)).toBe(true);
-    expect(isLevelUnlocked(save, 2)).toBe(false);
-    expect(nextLevel(save, 50)).toBe(1);
-    expect(clearedLevels(save, 50)).toBe(1);
+    expect(isLevelCleared(save.levels, 0)).toBe(true);
+    expect(isLevelUnlocked(save.levels, 1)).toBe(true);
+    expect(isLevelUnlocked(save.levels, 2)).toBe(false);
+    expect(nextLevel(save.levels, 50)).toBe(1);
+    expect(clearedLevels(save.levels, 50)).toBe(1);
   });
 
   it('replaying a cleared level only improves its best time', () => {
@@ -204,6 +231,149 @@ describe('levels', () => {
   it('finishes when every level is cleared', () => {
     let save = defaultSave();
     for (let i = 0; i < 3; i++) save = recordLevelAnswer(save, i, 'easy', { correct: true, ms: 1 }).save;
-    expect(nextLevel(save, 3)).toBeNull();
+    expect(nextLevel(save.levels, 3)).toBeNull();
+  });
+});
+
+describe('reverse levels', () => {
+  it('are fifty targets the classic campaign does not use', () => {
+    expect(REVERSE_LEVELS).toHaveLength(50);
+    const classic = new Set(LEVELS.map((p) => JSON.stringify([p.gridSize, p.folds, p.punches])));
+    const seen = new Set<string>();
+    for (const level of REVERSE_LEVELS) {
+      const key = JSON.stringify([level.gridSize, level.folds, level.punches]);
+      expect(classic.has(key), level.id).toBe(false);
+      seen.add(`${level.gridSize}:${patternKey(level.holes)}`);
+    }
+    expect(seen.size).toBe(50);
+  });
+
+  it('can each be solved by clicking creases and punching within the allowance', () => {
+    for (const level of REVERSE_LEVELS) {
+      // Punching every hole directly must not be enough.
+      expect(level.holes.length, level.id).toBeGreaterThan(level.punches.length);
+      expect(patternKey(bruteForceHoles(level.gridSize, level.folds, level.punches)), level.id).toBe(
+        patternKey(level.holes),
+      );
+
+      // Replay the reference solution through the same moves the player has.
+      let work = EMPTY_WORK;
+      for (const fold of level.folds) {
+        let next = addFold(level.gridSize, work, fold);
+        expect(next, level.id).not.toBeNull();
+        if (next!.folds.at(-1)!.direction !== fold.direction) next = flipLastFold(level.gridSize, next!);
+        expect(next?.folds.at(-1), level.id).toEqual(fold);
+        work = next!;
+      }
+      for (const cell of level.punches) {
+        const next = togglePunch(level.gridSize, work, cell, level.punches.length);
+        expect(next, level.id).not.toBeNull();
+        work = next!;
+      }
+      expect(patternKey(simulate(level.gridSize, work.folds, work.punches)!.holes), level.id).toBe(
+        patternKey(level.holes),
+      );
+    }
+  });
+
+  it('keep their own progress and best times', () => {
+    let save = recordReverseClear(defaultSave(), 0, 9000);
+    save = recordReverseClear(save, 0, 12_000);
+    expect(save.reverse[0]).toEqual({ bestMs: 9000 });
+    expect(isLevelUnlocked(save.reverse, 1)).toBe(true);
+    expect(isLevelUnlocked(save.levels, 1)).toBe(false);
+    expect(save.stats).toEqual(defaultSave().stats);
+    expect(parseSave(JSON.stringify(save))).toEqual(save);
+  });
+});
+
+describe('folding by hand', () => {
+  it('offers grid lines and diagonals, and folds the smaller flap by default', () => {
+    const flat = workStates(4, EMPTY_WORK).at(-1)!;
+    const options = creaseOptions(flat, 0);
+    const axes = new Set(options.map((o) => o.axis));
+    expect([...axes].sort()).toEqual(['diagonal-down', 'diagonal-up', 'horizontal', 'vertical']);
+    // Off-centre: only the narrow side can fold without leaving the sheet.
+    expect(options.find((o) => o.axis === 'vertical' && o.position === 1)!.directions).toEqual(['positive']);
+    expect(options.find((o) => o.axis === 'vertical' && o.position === 3)!.directions).toEqual(['negative']);
+    // Down the middle either side can move.
+    const middle = options.find((o) => o.axis === 'vertical' && o.position === 2)!;
+    expect(middle.directions).toEqual(['positive', 'negative']);
+    expect(middle.segment).toEqual([
+      { x: 2, y: 0 },
+      { x: 2, y: 4 },
+    ]);
+  });
+
+  it('only offers creases that cross the folded paper', () => {
+    const half = addFold(4, EMPTY_WORK, { axis: 'vertical', position: 2 })!;
+    const options = creaseOptions(workStates(4, half).at(-1)!, 1);
+    expect(options.some((o) => o.axis === 'vertical' && o.position === 1)).toBe(false);
+    const across = options.find((o) => o.axis === 'horizontal' && o.position === 2)!;
+    expect(across.segment.map((p) => p.x).sort()).toEqual([2, 4]);
+    expect(across.segment.map((p) => p.y)).toEqual([2, 2]);
+  });
+
+  it('flips a fold, punches within the allowance and blocks folding after a punch', () => {
+    let work = addFold(4, EMPTY_WORK, { axis: 'vertical', position: 2 })!;
+    expect(work.folds).toEqual([{ axis: 'vertical', position: 2, direction: 'positive' }]);
+    work = flipLastFold(4, work)!;
+    expect(work.folds[0]!.direction).toBe('negative');
+    // The paper now covers the left half only.
+    expect(togglePunch(4, work, { x: 3, y: 0 }, 2)).toBeNull();
+    work = togglePunch(4, work, { x: 0, y: 0 }, 2)!;
+    work = togglePunch(4, work, { x: 1, y: 2 }, 2)!;
+    expect(togglePunch(4, work, { x: 1, y: 3 }, 2)).toBeNull();
+    expect(addFold(4, work, { axis: 'horizontal', position: 2 })).toBeNull();
+    expect(flipLastFold(4, work)).toBeNull();
+    expect(patternKey(simulate(4, work.folds, work.punches)!.holes)).toBe('0,0;3,0;1,2;2,2');
+    work = togglePunch(4, work, { x: 0, y: 0 }, 2)!;
+    expect(work.punches).toEqual([{ x: 1, y: 2 }]);
+  });
+
+  it('rejects creases that are not on offer', () => {
+    expect(addFold(4, EMPTY_WORK, { axis: 'vertical', position: 0 })).toBeNull();
+    expect(addFold(4, EMPTY_WORK, { axis: 'vertical', position: 9 })).toBeNull();
+    expect(flipLastFold(4, EMPTY_WORK)).toBeNull();
+  });
+});
+
+describe('custom puzzles', () => {
+  const work = {
+    folds: [
+      { axis: 'vertical', position: 2, direction: 'positive' },
+      { axis: 'horizontal', position: 2, direction: 'positive' },
+    ],
+    punches: [{ x: 2, y: 3 }],
+  } satisfies Work;
+
+  it('round-trip through a link code', () => {
+    for (const level of [...LEVELS, ...REVERSE_LEVELS]) {
+      const source = { folds: level.folds, punches: level.punches };
+      const code = encodeCustom(level.gridSize, source);
+      expect(code).toMatch(/^[0-9a-zA-Z_-]+$/);
+      expect(decodeCustom(code), code).toEqual({ gridSize: level.gridSize, work: source });
+    }
+  });
+
+  it('rejects codes that are malformed or not foldable', () => {
+    for (const bad of ['', '4', '4_10', '4v2_', '5v2_10', '4v2_99', '4v9_10', '4x2_10', '4v2_1010', '4v2v2v2v2v2v2_10']) {
+      expect(decodeCustom(bad), bad).toBeNull();
+    }
+  });
+
+  it('become a four-choice puzzle with one right answer, the same every time', () => {
+    expect(simulate(4, work.folds, work.punches)).not.toBeNull();
+    const puzzle = customPuzzle(4, work)!;
+    expect(puzzle.options).toHaveLength(4);
+    expect(new Set(puzzle.options.map(patternKey)).size).toBe(4);
+    expect(patternKey(puzzle.options[puzzle.correctIndex]!)).toBe(patternKey(bruteForceHoles(4, work.folds, work.punches)));
+    expect(customPuzzle(4, work)).toEqual(puzzle);
+  });
+
+  it('need at least one fold and one punch', () => {
+    expect(customPuzzle(4, EMPTY_WORK)).toBeNull();
+    expect(customPuzzle(4, { folds: work.folds, punches: [] })).toBeNull();
+    expect(customPuzzle(4, { folds: [], punches: [{ x: 0, y: 0 }] })).toBeNull();
   });
 });

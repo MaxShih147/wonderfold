@@ -71,9 +71,9 @@ export function StatsDialog({ onClose }: { onClose: () => void }) {
   return (
     <Modal title={t('stats')} onClose={onClose}>
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Stat label={t('levels')} value={`${clearedLevels(save, LEVEL_COUNT)}/${LEVEL_COUNT}`} />
+        <Stat label={t('modeClassic')} value={`${clearedLevels(save.levels, LEVEL_COUNT)}/${LEVEL_COUNT}`} />
+        <Stat label={t('modeReverse')} value={`${clearedLevels(save.reverse, LEVEL_COUNT)}/${LEVEL_COUNT}`} />
         <Stat label={t('score')} value={stats.score.toLocaleString()} />
-        <Stat label={t('streak')} value={stats.streak} />
         <Stat label={t('bestStreak')} value={stats.bestStreak} />
       </dl>
       {played === 0 ? (

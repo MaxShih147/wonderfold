@@ -4,21 +4,23 @@ import { CheckIcon } from '../components/icons.tsx';
 import { Round } from '../components/Round.tsx';
 import { useT } from '../game/i18n.ts';
 import { LEVEL_COUNT, LEVELS, levelLabel } from '../game/levels.ts';
-import { navigate } from '../game/router.ts';
+import { navigate, type Route } from '../game/router.ts';
 import { clearedLevels, isLevelCleared, isLevelUnlocked, recordLevelAnswer, type AnswerResult } from '../game/save.ts';
 import { getSave, updateSave, useSave } from '../game/store.ts';
+
+const MAP: Route = { name: 'levels', mode: 'classic' };
 
 export function Play({ index }: { index: number }) {
   const t = useT();
   const save = useSave();
   const puzzle = LEVELS[index]!;
-  const unlocked = isLevelUnlocked(save, index);
+  const unlocked = isLevelUnlocked(save.levels, index);
   const isLast = index === LEVEL_COUNT - 1;
   const [attempt, setAttempt] = useState(0);
 
   // A link to a level that is still locked goes back to the level list.
   useEffect(() => {
-    if (!unlocked) navigate({ name: 'home' }, { replace: true });
+    if (!unlocked) navigate(MAP, { replace: true });
   }, [unlocked]);
 
   const onAnswer = useCallback(
@@ -31,7 +33,7 @@ export function Play({ index }: { index: number }) {
   );
 
   const onNext = useCallback(
-    () => navigate(isLast ? { name: 'home' } : { name: 'level', index: index + 1 }, { replace: true }),
+    () => navigate(isLast ? MAP : { name: 'level', index: index + 1 }, { replace: true }),
     [index, isLast],
   );
   const onRetry = useCallback(() => setAttempt((n) => n + 1), []);
@@ -40,22 +42,22 @@ export function Play({ index }: { index: number }) {
 
   return (
     <div className="game-layout flex min-h-dvh flex-col">
-      <Header title={t('levelTitle', { label: levelLabel(index) })} />
+      <Header title={t('levelTitle', { label: levelLabel(index) })} back={MAP} />
       <Round
         key={`${puzzle.id}-${attempt}`}
         puzzle={puzzle}
         onAnswer={onAnswer}
         onNext={onNext}
         onRetry={onRetry}
-        nextLabel={isLast ? t('home') : t('nextLevel')}
+        nextLabel={isLast ? t('levels') : t('nextLevel')}
         status={
           <>
             <Chip label={t('levels')}>
               <span data-testid="progress">
-                {clearedLevels(save, LEVEL_COUNT)}/{LEVEL_COUNT}
+                {clearedLevels(save.levels, LEVEL_COUNT)}/{LEVEL_COUNT}
               </span>
             </Chip>
-            {isLevelCleared(save, index) ? (
+            {isLevelCleared(save.levels, index) ? (
               <Chip label={t('cleared')} icon={<CheckIcon width={16} height={16} className="text-good" />}>
                 {null}
               </Chip>

@@ -6,3 +6,4 @@ export * from './generator.ts';
 export * from './daily.ts';
 export { buildDistractors, type Distractor } from './distractors.ts';
 export { mulberry32, mixSeed, hashString, type Rng } from './rng.ts';
+export * from './workbench.ts';

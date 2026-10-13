@@ -1,8 +1,24 @@
-import type { Puzzle } from '../engine/index.ts';
-import { LEVEL_DATA } from './levels.data.ts';
+import type { Cell, FoldOperation, Puzzle } from '../engine/index.ts';
+import { LEVEL_DATA, REVERSE_DATA } from './levels.data.ts';
+
+/** A reverse level: the player sees `holes` and has to fold and punch to match. */
+export interface ReverseLevel {
+  id: string;
+  gridSize: number;
+  /** The unfolded sheet to reproduce. */
+  holes: Cell[];
+  /** One way to do it. The number of punches is the player's allowance. */
+  folds: FoldOperation[];
+  punches: Cell[];
+  rating: number;
+}
+
+export type LevelMode = 'classic' | 'reverse';
 
 /** The campaign: five tiers of ten fixed levels, played in order. */
 export const LEVELS: readonly Puzzle[] = LEVEL_DATA;
+/** The same shape of campaign, played backwards. */
+export const REVERSE_LEVELS: readonly ReverseLevel[] = REVERSE_DATA;
 export const LEVELS_PER_TIER = 10;
 export const LEVEL_COUNT = LEVELS.length;
 export const TIER_COUNT = LEVEL_COUNT / LEVELS_PER_TIER;
@@ -32,8 +48,12 @@ function range(values: readonly number[]): string {
 }
 
 /** What a tier asks of the player, read off its levels. */
-export function tierSummary(tier: number): { grid: number; folds: string; punches: string; diagonals: boolean } {
-  const levels = LEVELS.slice(tier * LEVELS_PER_TIER, (tier + 1) * LEVELS_PER_TIER);
+export function tierSummary(
+  mode: LevelMode,
+  tier: number,
+): { grid: number; folds: string; punches: string; diagonals: boolean } {
+  const all: readonly Pick<Puzzle, 'gridSize' | 'folds' | 'punches'>[] = mode === 'classic' ? LEVELS : REVERSE_LEVELS;
+  const levels = all.slice(tier * LEVELS_PER_TIER, (tier + 1) * LEVELS_PER_TIER);
   return {
     grid: levels[0]!.gridSize,
     folds: range(levels.map((p) => p.folds.length)),
