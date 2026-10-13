@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "assets": "tsx scripts/generate-assets.ts",
+    "levels": "tsx scripts/generate-levels.ts",
     "check": "npm run typecheck && npm run lint && npm run test && npm run build && npm run test:e2e"
   },
   "description": "Wonderfold — fold, punch, unfold. A paper-folding spatial reasoning puzzle.",

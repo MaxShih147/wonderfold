@@ -1,24 +1,24 @@
 import { useSyncExternalStore } from 'react';
-import { DIFFICULTIES, type Difficulty } from '../engine/index.ts';
+import { levelLabel, parseLevelLabel } from './levels.ts';
 
 export type Route =
   | { name: 'home' }
-  | { name: 'play'; difficulty: Difficulty; seed: number | null }
+  | { name: 'level'; index: number }
   | { name: 'daily' };
 
 export function parseRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   if (parts[0] === 'daily') return { name: 'daily' };
-  if (parts[0] === 'play' && DIFFICULTIES.includes(parts[1] as Difficulty)) {
-    const seed = parts[2] !== undefined && /^\d{1,10}$/.test(parts[2]) ? Number(parts[2]) >>> 0 : null;
-    return { name: 'play', difficulty: parts[1] as Difficulty, seed };
+  if (parts[0] === 'level') {
+    const index = parseLevelLabel(parts[1] ?? '');
+    if (index !== null) return { name: 'level', index };
   }
   return { name: 'home' };
 }
 
 export function routeHash(route: Route): string {
   if (route.name === 'daily') return '#/daily';
-  if (route.name === 'play') return `#/play/${route.difficulty}${route.seed === null ? '' : `/${route.seed}`}`;
+  if (route.name === 'level') return `#/level/${levelLabel(route.index)}`;
   return '#/';
 }
 

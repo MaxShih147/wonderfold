@@ -1,12 +1,20 @@
 import { describe, expect, it } from 'vitest';
+import { patternKey, simulate } from '../../engine/index.ts';
+import { bruteForceHoles } from '../../engine/__tests__/oracle.ts';
+import { LEVELS, TIER_COUNT, levelLabel, parseLevelLabel } from '../levels.ts';
 import { parseRoute, routeHash } from '../router.ts';
 import {
+  clearedLevels,
   currentDailyStreak,
   defaultSave,
+  isLevelCleared,
+  isLevelUnlocked,
+  nextLevel,
   parseSave,
   pointsFor,
   recordAnswer,
   recordDailyAnswer,
+  recordLevelAnswer,
   type Save,
 } from '../save.ts';
 import { dailyShareText, formatTime } from '../share.ts';
@@ -90,6 +98,7 @@ describe('persistence', () => {
     expect(partial.stats.byDifficulty.hard.played).toBe(0);
     // Settings added after a save was written take their default.
     expect(partial.settings.grid).toBe(false);
+    expect(partial.levels).toEqual({});
   });
 });
 
@@ -111,10 +120,90 @@ describe('routing', () => {
   it('parses and builds hashes', () => {
     expect(parseRoute('')).toEqual({ name: 'home' });
     expect(parseRoute('#/daily')).toEqual({ name: 'daily' });
-    expect(parseRoute('#/play/hard')).toEqual({ name: 'play', difficulty: 'hard', seed: null });
-    expect(parseRoute('#/play/easy/42')).toEqual({ name: 'play', difficulty: 'easy', seed: 42 });
-    expect(parseRoute('#/play/impossible')).toEqual({ name: 'home' });
-    expect(parseRoute('#/play/easy/abc')).toEqual({ name: 'play', difficulty: 'easy', seed: null });
-    expect(routeHash({ name: 'play', difficulty: 'medium', seed: 7 })).toBe('#/play/medium/7');
+    expect(parseRoute('#/level/1-0')).toEqual({ name: 'level', index: 0 });
+    expect(parseRoute('#/level/5-9')).toEqual({ name: 'level', index: 49 });
+    for (const bad of ['#/level', '#/level/0-0', '#/level/6-0', '#/level/1-10', '#/level/abc', '#/play/easy/42']) {
+      expect(parseRoute(bad), bad).toEqual({ name: 'home' });
+    }
+    expect(routeHash({ name: 'level', index: 23 })).toBe('#/level/3-3');
+  });
+});
+
+describe('levels', () => {
+  it('are five tiers of ten fixed, distinct puzzles', () => {
+    expect(TIER_COUNT).toBe(5);
+    expect(LEVELS).toHaveLength(50);
+    expect(new Set(LEVELS.map((p) => p.id)).size).toBe(50);
+    expect(new Set(LEVELS.map((p) => JSON.stringify([p.gridSize, p.folds, p.punches]))).size).toBe(50);
+    expect(LEVELS.map((_, i) => parseLevelLabel(levelLabel(i)))).toEqual(LEVELS.map((_, i) => i));
+  });
+
+  it('each have exactly one right answer, confirmed by an independent simulation', () => {
+    for (const p of LEVELS) {
+      expect(p.options, p.id).toHaveLength(4);
+      expect(new Set(p.options.map(patternKey)).size, p.id).toBe(4);
+      for (const cell of p.options.flat()) {
+        expect(cell.x >= 0 && cell.y >= 0 && cell.x < p.gridSize && cell.y < p.gridSize, p.id).toBe(true);
+      }
+      expect(simulate(p.gridSize, p.folds, p.punches), p.id).not.toBeNull();
+      const expected = patternKey(bruteForceHoles(p.gridSize, p.folds, p.punches));
+      expect(p.options.map(patternKey).filter((key) => key === expected), p.id).toHaveLength(1);
+      expect(patternKey(p.options[p.correctIndex]!), p.id).toBe(expected);
+    }
+  });
+
+  it('get harder within a tier and never easier from one tier to the next', () => {
+    const rank = { easy: 0, medium: 1, hard: 2 };
+    for (let i = 1; i < LEVELS.length; i++) {
+      const [prev, level] = [LEVELS[i - 1]!, LEVELS[i]!];
+      expect(rank[level.difficulty], level.id).toBeGreaterThanOrEqual(rank[prev.difficulty]);
+      if (level.difficulty === prev.difficulty) expect(level.rating, level.id).toBeGreaterThanOrEqual(prev.rating);
+    }
+  });
+
+  it('unlock one at a time', () => {
+    let save = defaultSave();
+    expect(nextLevel(save, 50)).toBe(0);
+    expect(isLevelUnlocked(save, 0)).toBe(true);
+    expect(isLevelUnlocked(save, 1)).toBe(false);
+
+    // A miss costs the streak but opens nothing.
+    save = recordLevelAnswer(save, 0, 'easy', { correct: false, ms: 900 }).save;
+    expect(isLevelCleared(save, 0)).toBe(false);
+    expect(isLevelUnlocked(save, 1)).toBe(false);
+    expect(save.stats.byDifficulty.easy.played).toBe(1);
+
+    const win = recordLevelAnswer(save, 0, 'easy', { correct: true, ms: 4000 });
+    save = win.save;
+    expect(win.points).toBeGreaterThanOrEqual(100);
+    expect(isLevelCleared(save, 0)).toBe(true);
+    expect(isLevelUnlocked(save, 1)).toBe(true);
+    expect(isLevelUnlocked(save, 2)).toBe(false);
+    expect(nextLevel(save, 50)).toBe(1);
+    expect(clearedLevels(save, 50)).toBe(1);
+  });
+
+  it('replaying a cleared level only improves its best time', () => {
+    let save = recordLevelAnswer(defaultSave(), 0, 'easy', { correct: true, ms: 4000 }).save;
+    const { score } = save.stats;
+    for (const result of [
+      { correct: true, ms: 9000 },
+      { correct: false, ms: 100 },
+      { correct: true, ms: 2500 },
+    ]) {
+      const replay = recordLevelAnswer(save, 0, 'easy', result);
+      expect(replay.points).toBeNull();
+      save = replay.save;
+    }
+    expect(save.levels[0]).toEqual({ bestMs: 2500 });
+    expect(save.stats.score).toBe(score);
+    expect(save.stats.byDifficulty.easy.played).toBe(1);
+    expect(parseSave(JSON.stringify(save))).toEqual(save);
+  });
+
+  it('finishes when every level is cleared', () => {
+    let save = defaultSave();
+    for (let i = 0; i < 3; i++) save = recordLevelAnswer(save, i, 'easy', { correct: true, ms: 1 }).save;
+    expect(nextLevel(save, 3)).toBeNull();
   });
 });

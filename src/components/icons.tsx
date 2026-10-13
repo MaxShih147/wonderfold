@@ -87,3 +87,9 @@ export const PunchIcon = (p: P) => (
     <path d="M12 3v2M12 19v2M3 12h2M19 12h2" />
   </Icon>
 );
+export const LockIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="5" y="11" width="14" height="9" rx="2" />
+    <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+  </Icon>
+);

@@ -20,6 +20,11 @@ export interface DailyRecord {
   results: AnswerResult[];
 }
 
+export interface LevelRecord {
+  /** Fastest correct answer. */
+  bestMs: number;
+}
+
 export interface Save {
   version: 1;
   settings: { lang: Lang | null; theme: ThemeChoice; seenHowTo: boolean; grid: boolean };
@@ -29,6 +34,8 @@ export interface Save {
     score: number;
     byDifficulty: Record<Difficulty, DifficultyStats>;
   };
+  /** Cleared campaign levels, keyed by level index. */
+  levels: Record<string, LevelRecord>;
   daily: {
     history: Record<string, DailyRecord>;
     streak: number;
@@ -49,6 +56,7 @@ export function defaultSave(): Save {
       score: 0,
       byDifficulty: { easy: emptyDifficulty(), medium: emptyDifficulty(), hard: emptyDifficulty() },
     },
+    levels: {},
     daily: { history: {}, streak: 0, bestStreak: 0, lastCompleted: null },
   };
 }
@@ -89,6 +97,50 @@ export function recordAnswer(save: Save, difficulty: Difficulty, result: AnswerR
         byDifficulty: { ...save.stats.byDifficulty, [difficulty]: next },
       },
     },
+  };
+}
+
+export function isLevelCleared(save: Save, index: number): boolean {
+  return typeof save.levels[index]?.bestMs === 'number';
+}
+
+/** Levels open one at a time: each needs the one before it cleared. */
+export function isLevelUnlocked(save: Save, index: number): boolean {
+  return index === 0 || isLevelCleared(save, index - 1);
+}
+
+export function clearedLevels(save: Save, total: number): number {
+  let count = 0;
+  for (let i = 0; i < total; i++) if (isLevelCleared(save, i)) count++;
+  return count;
+}
+
+/** The first level still to clear, or `null` once the campaign is finished. */
+export function nextLevel(save: Save, total: number): number | null {
+  for (let i = 0; i < total; i++) if (!isLevelCleared(save, i)) return i;
+  return null;
+}
+
+/**
+ * Records an attempt at a campaign level. Attempts count towards score and
+ * statistics until the level is cleared; replays only improve its best time.
+ */
+export function recordLevelAnswer(
+  save: Save,
+  index: number,
+  difficulty: Difficulty,
+  result: AnswerResult,
+): { save: Save; points: number | null } {
+  const previous = save.levels[index];
+  if (previous && isLevelCleared(save, index)) {
+    if (!result.correct || result.ms >= previous.bestMs) return { save, points: null };
+    return { save: { ...save, levels: { ...save.levels, [index]: { bestMs: result.ms } } }, points: null };
+  }
+  const answered = recordAnswer(save, difficulty, result);
+  if (!result.correct) return answered;
+  return {
+    points: answered.points,
+    save: { ...answered.save, levels: { ...answered.save.levels, [index]: { bestMs: result.ms } } },
   };
 }
 

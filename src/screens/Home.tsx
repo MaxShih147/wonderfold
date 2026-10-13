@@ -1,17 +1,16 @@
 import { useState } from 'react';
 import { DemoLoop } from '../components/DemoLoop.tsx';
 import { HowToDialog, SettingsDialog, StatsDialog } from '../components/Dialogs.tsx';
-import { ArrowIcon, ChartIcon, CheckIcon, FlameIcon, GearIcon, HelpIcon } from '../components/icons.tsx';
+import { ArrowIcon, ChartIcon, CheckIcon, FlameIcon, GearIcon, HelpIcon, LockIcon } from '../components/icons.tsx';
 import { LogoMark } from '../components/Logo.tsx';
-import { DAILY_LINEUP, DIFFICULTIES, dailyNumber, dateKey } from '../engine/index.ts';
+import { DAILY_LINEUP, dailyNumber, dateKey } from '../engine/index.ts';
 import { useT, type MessageKey } from '../game/i18n.ts';
+import { LEVEL_COUNT, LEVELS_PER_TIER, TIER_COUNT, levelLabel, tierSummary } from '../game/levels.ts';
 import { navigate } from '../game/router.ts';
-import { accuracy, currentDailyStreak } from '../game/save.ts';
+import { clearedLevels, currentDailyStreak, isLevelCleared, isLevelUnlocked, nextLevel } from '../game/save.ts';
 import { updateSave, useSave } from '../game/store.ts';
 
 type Dialog = 'howto' | 'stats' | 'settings' | null;
-
-const DOTS: Record<string, number> = { easy: 1, medium: 2, hard: 3 };
 
 export function Home() {
   const t = useT();
@@ -21,6 +20,8 @@ export function Home() {
   const dailyResults = save.daily.history[today]?.results ?? [];
   const dailyDone = dailyResults.length >= DAILY_LINEUP.length;
   const dayStreak = currentDailyStreak(save, today);
+  const cleared = clearedLevels(save, LEVEL_COUNT);
+  const upNext = nextLevel(save, LEVEL_COUNT);
 
   const closeDialog = () => {
     if (dialog === 'howto' && !save.settings.seenHowTo) {
@@ -98,37 +99,74 @@ export function Home() {
             </span>
           </button>
 
-          <h2 className="text-muted mt-3 px-1 text-sm font-semibold tracking-wide uppercase">{t('practice')}</h2>
-          {DIFFICULTIES.map((difficulty) => {
-            const rate = accuracy(save.stats.byDifficulty[difficulty]);
+          <div className="mt-3 flex items-end justify-between px-1">
+            <h2 className="text-muted text-sm font-semibold tracking-wide uppercase">{t('levels')}</h2>
+            <span className="text-muted tabular text-sm" data-testid="levels-cleared">
+              {cleared}/{LEVEL_COUNT}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate({ name: 'level', index: upNext ?? 0 })}
+            data-testid="continue"
+            className="bg-surface shadow-card border-accent text-accent group flex h-13 items-center justify-between gap-4 rounded-2xl border-2 px-5 text-left font-semibold transition active:scale-[0.99]"
+          >
+            <span>
+              {upNext === null
+                ? t('allCleared')
+                : `${t(cleared === 0 ? 'play' : 'continue')} · ${t('levelTitle', { label: levelLabel(upNext) })}`}
+            </span>
+            {upNext === null ? <CheckIcon /> : <ArrowIcon className="transition group-hover:translate-x-0.5" />}
+          </button>
+          {Array.from({ length: TIER_COUNT }, (_, tier) => {
+            const first = tier * LEVELS_PER_TIER;
+            const { diagonals, ...summary } = tierSummary(tier);
+            const done = Array.from({ length: LEVELS_PER_TIER }, (_, i) => isLevelCleared(save, first + i)).filter(Boolean).length;
+            const open = isLevelUnlocked(save, first);
             return (
-              <button
-                key={difficulty}
-                type="button"
-                onClick={() => navigate({ name: 'play', difficulty, seed: null })}
-                data-testid={`start-${difficulty}`}
-                className="bg-surface shadow-card border-line hover:border-accent group flex items-center justify-between gap-4 rounded-2xl border-2 px-5 py-4 text-left transition active:scale-[0.99]"
+              <section
+                key={tier}
+                data-testid={`tier-${tier + 1}`}
+                className={`bg-surface shadow-card rounded-2xl px-4 pt-3 pb-4 ${open ? '' : 'opacity-60'}`}
               >
-                <div>
-                  <h3 className="font-display flex items-center gap-2.5 text-xl font-semibold">
-                    {t(difficulty)}
-                    <span className="flex gap-1" aria-hidden="true">
-                      {[1, 2, 3].map((n) => (
-                        <span key={n} className={`size-1.5 rounded-full ${n <= DOTS[difficulty]! ? 'bg-accent' : 'bg-line'}`} />
-                      ))}
-                    </span>
-                  </h3>
-                  <p className="text-muted text-sm">{t(`${difficulty}Blurb`)}</p>
+                <div className="flex items-baseline justify-between gap-3">
+                  <h3 className="font-display text-lg font-semibold">{t('tier', { n: tier + 1 })}</h3>
+                  <span className="text-muted tabular flex items-center gap-1 text-sm">
+                    {!open && <LockIcon width={13} height={13} />}
+                    {done}/{LEVELS_PER_TIER}
+                  </span>
                 </div>
-                <div className="flex items-center gap-3">
-                  {rate !== null && (
-                    <span className="text-muted tabular text-sm" title={t('accuracy')}>
-                      {Math.round(rate * 100)}%
-                    </span>
-                  )}
-                  <ArrowIcon className="text-muted group-hover:text-accent transition group-hover:translate-x-0.5" />
+                <p className="text-muted text-sm">{t(diagonals ? 'tierBlurbDiagonal' : 'tierBlurb', summary)}</p>
+                <div className="mt-3 grid grid-cols-5 gap-2 min-[440px]:grid-cols-10 min-[440px]:gap-1.5">
+                  {Array.from({ length: LEVELS_PER_TIER }, (_, step) => {
+                    const index = first + step;
+                    const label = levelLabel(index);
+                    const state = isLevelCleared(save, index) ? 'cleared' : index === upNext ? 'current' : 'locked';
+                    const look = {
+                      cleared: 'bg-accent text-accent-ink hover:brightness-110',
+                      current: 'border-accent text-accent border-2',
+                      locked: 'bg-sunken text-muted/60',
+                    }[state];
+                    return (
+                      <button
+                        key={step}
+                        type="button"
+                        disabled={state === 'locked'}
+                        onClick={() => navigate({ name: 'level', index })}
+                        data-testid={`level-${label}`}
+                        data-state={state}
+                        aria-label={t(
+                          state === 'locked' ? 'levelLocked' : state === 'cleared' ? 'levelCleared' : 'levelTitle',
+                          { label },
+                        )}
+                        className={`tabular grid h-10 place-items-center rounded-xl text-sm font-semibold transition enabled:active:scale-95 ${look}`}
+                      >
+                        {step}
+                      </button>
+                    );
+                  })}
                 </div>
-              </button>
+              </section>
             );
           })}
 

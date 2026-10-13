@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { DIFFICULTIES } from '../engine/index.ts';
 import { LANGUAGES, useLang, useT } from '../game/i18n.ts';
-import { accuracy, type ThemeChoice } from '../game/save.ts';
+import { LEVEL_COUNT } from '../game/levels.ts';
+import { accuracy, clearedLevels, type ThemeChoice } from '../game/save.ts';
 import { formatTime } from '../game/share.ts';
 import { resetProgress, setGrid, updateSave, useSave } from '../game/store.ts';
 import { DEMO } from './demo.ts';
@@ -64,12 +65,13 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 
 export function StatsDialog({ onClose }: { onClose: () => void }) {
   const t = useT();
-  const { stats, daily } = useSave();
+  const save = useSave();
+  const { stats, daily } = save;
   const played = DIFFICULTIES.reduce((sum, d) => sum + stats.byDifficulty[d].played, 0);
   return (
     <Modal title={t('stats')} onClose={onClose}>
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Stat label={t('played')} value={played} />
+        <Stat label={t('levels')} value={`${clearedLevels(save, LEVEL_COUNT)}/${LEVEL_COUNT}`} />
         <Stat label={t('score')} value={stats.score.toLocaleString()} />
         <Stat label={t('streak')} value={stats.streak} />
         <Stat label={t('bestStreak')} value={stats.bestStreak} />

@@ -21,6 +21,6 @@ export function App() {
   }, [theme]);
 
   if (route.name === 'daily') return <Daily />;
-  if (route.name === 'play') return <Play difficulty={route.difficulty} seed={route.seed} />;
+  if (route.name === 'level') return <Play index={route.index} />;
   return <Home />;
 }

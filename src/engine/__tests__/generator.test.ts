@@ -1,33 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { dailyNumber, dailyPuzzles, dateKey, previousDateKey } from '../daily.ts';
-import { cellCenter, cellKey, foldLine, isOnMovingSide, patternKey, simulate } from '../fold.ts';
+import { cellKey, patternKey, simulate } from '../fold.ts';
 import { foldFrame, foldHint, staticFrame } from '../frames.ts';
 import { DIFFICULTY_CONFIG, generatePuzzle } from '../generator.ts';
-import { apply, reflectAcross, type Point } from '../geometry.ts';
-import { DIFFICULTIES, type Cell, type FoldOperation, type Puzzle } from '../types.ts';
+import { apply, type Point } from '../geometry.ts';
+import { DIFFICULTIES, type Puzzle } from '../types.ts';
+import { bruteForceHoles } from './oracle.ts';
 
 const PER_DIFFICULTY = 1500;
-
-/**
- * Independent oracle. Instead of tracking layers and unfolding them, follow
- * every cell of the flat sheet *forwards* through the folds and see whether
- * it ends up under a punch. Shares no code path with the layer model beyond
- * point reflection.
- */
-function bruteForceHoles(gridSize: number, folds: FoldOperation[], punches: Cell[]): Cell[] {
-  const punched = new Set(punches.map(cellKey));
-  const holes: Cell[] = [];
-  for (let y = 0; y < gridSize; y++) {
-    for (let x = 0; x < gridSize; x++) {
-      let p: Point = cellCenter({ x, y });
-      for (const fold of folds) {
-        if (isOnMovingSide(fold, p)) p = apply(reflectAcross(foldLine(fold)), p);
-      }
-      if (punched.has(cellKey({ x: p.x - 0.5, y: p.y - 0.5 }))) holes.push({ x, y });
-    }
-  }
-  return holes;
-}
 
 const puzzles: Record<string, Puzzle[]> = {};
 for (const difficulty of DIFFICULTIES) {

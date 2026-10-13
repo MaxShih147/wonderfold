@@ -16,6 +16,11 @@ interface Props {
   onAnswer: (result: AnswerResult) => number | null;
   onNext: () => void;
   nextLabel: string;
+  /**
+   * When set, a wrong answer does not give the solution away: the player is
+   * offered another go instead of the unfold animation.
+   */
+  onRetry?: () => void;
   /** Shown in the action bar while the puzzle is unanswered. */
   status?: ReactNode;
 }
@@ -35,7 +40,7 @@ function Timer({ startedAt, stoppedMs }: { startedAt: number; stoppedMs: number 
 }
 
 /** One puzzle from first fold to revealed answer. Remount (via `key`) per puzzle. */
-export function Round({ puzzle, onAnswer, onNext, nextLabel, status }: Props) {
+export function Round({ puzzle, onAnswer, onNext, nextLabel, onRetry, status }: Props) {
   const t = useT();
   const { grid } = useSave().settings;
   const sim = useMemo(() => {
@@ -51,10 +56,14 @@ export function Round({ puzzle, onAnswer, onNext, nextLabel, status }: Props) {
   const [manual, setManual] = useState<View | null>(null);
   const answered = useRef(false);
 
-  const script = useMemo(() => (answer ? unfoldScript(foldCount) : foldScript(foldCount)), [answer, foldCount]);
-  const playback = usePlayback(script, `${answer ? 'unfold' : 'fold'}-${run}`);
+  const correct = answer?.index === puzzle.correctIndex;
+  // The solution stays hidden after a miss when the player may try again.
+  const revealed = answer !== null && (correct || !onRetry);
+  const advance = answer !== null && !revealed && onRetry ? onRetry : onNext;
+
+  const script = useMemo(() => (revealed ? unfoldScript(foldCount) : foldScript(foldCount)), [revealed, foldCount]);
+  const playback = usePlayback(script, `${revealed ? 'unfold' : 'fold'}-${run}`);
   const view = manual ?? playback.view;
-  const revealed = answer !== null;
   const thumbs = useMemo(
     () =>
       Array.from({ length: foldCount + 1 }, (_, step): View => {
@@ -94,14 +103,12 @@ export function Round({ puzzle, onAnswer, onNext, nextLabel, status }: Props) {
       } else if (key === 'r') {
         replay();
       } else if (key === 'enter' && answered.current && !(event.target instanceof HTMLButtonElement)) {
-        onNext();
+        advance();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [choose, onNext, replay]);
-
-  const correct = answer?.index === puzzle.correctIndex;
+  }, [advance, choose, replay]);
 
   return (
     <div className="flex flex-1 flex-col gap-3 min-[900px]:flex-row min-[900px]:items-center min-[900px]:justify-center min-[900px]:gap-10">
@@ -172,7 +179,7 @@ export function Round({ puzzle, onAnswer, onNext, nextLabel, status }: Props) {
           {puzzle.options.map((holes, index) => {
             const isCorrect = index === puzzle.correctIndex;
             const isChosen = answer?.index === index;
-            const state = !answer ? 'idle' : isCorrect ? 'correct' : isChosen ? 'wrong' : 'dim';
+            const state = !answer ? 'idle' : isCorrect && revealed ? 'correct' : isChosen ? 'wrong' : 'dim';
             const ring = {
               idle: 'border-line hover:border-accent hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]',
               correct: 'border-good bg-good-soft',
@@ -226,7 +233,11 @@ export function Round({ puzzle, onAnswer, onNext, nextLabel, status }: Props) {
                   {correct ? t('correct') : t('wrong')}
                 </p>
                 <p className="text-muted tabular truncate text-sm">
-                  {correct ? formatTime(answer.ms) : t('answerWas', { letter: LETTERS[puzzle.correctIndex]! })}
+                  {correct
+                    ? formatTime(answer.ms)
+                    : revealed
+                      ? t('answerWas', { letter: LETTERS[puzzle.correctIndex]! })
+                      : t('retryHint')}
                   {correct && answer.points !== null && (
                     <span className="text-ink ml-2 font-semibold">{t('points', { n: answer.points })}</span>
                   )}
@@ -235,12 +246,12 @@ export function Round({ puzzle, onAnswer, onNext, nextLabel, status }: Props) {
               <button
                 type="button"
                 autoFocus
-                onClick={onNext}
-                data-testid="next"
+                onClick={advance}
+                data-testid={revealed ? 'next' : 'retry'}
                 className="bg-accent text-accent-ink flex h-12 shrink-0 items-center gap-2 rounded-full px-5 text-[15px] font-semibold shadow-sm transition hover:brightness-110 active:scale-[0.97]"
               >
-                {nextLabel}
-                <ArrowIcon width={18} height={18} />
+                {revealed ? nextLabel : t('retry')}
+                {revealed ? <ArrowIcon width={18} height={18} /> : <ReplayIcon width={18} height={18} />}
               </button>
             </>
           ) : (
